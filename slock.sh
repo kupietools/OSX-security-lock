@@ -15,10 +15,10 @@
 
 ### SPECIFY GLOBAL BEHAVIOR SETTINGS ###
 
-thePassword="password"
+thePassword="P@ssw0rd"
 # Think quick! If alwaysOfferChanceToEnterPassword and/or giveDelayToEnterPasswordOnNetworks is enabled below, the above password can be entered to prevent the screen from locking. This is to prevent the occasional annoying false positive while I'm in the middle of working, or to allow bypassing the lock when first waking the computer up.
 
-thePasswordDelay=10
+thePasswordDelay=20
 # Delay (in seconds) before locking the computer, to give the user an opportunity to enter a password to bypass. Note: Make this short enough that a potential thief doesn't have time to drop into Terminal, run a 'ps', get the name of this script, and abort it before locking! I recommend a 5 second default. Maybe 10 at most, if you're a slow typer and need it.
 
 alwaysOfferChanceToEnterPassword='true'
@@ -33,7 +33,7 @@ doNotTriggerOnNetworks='Home_Network_SSID|OfficeNetwork|FortKnoxGuest|ShipwreckS
 #Security lock will never trip when above networks are connected. Useful to automatically turn this off when in trusted places where you feel your computer is not in danger of being stolen or infiltrated, such as your home, office, Fort Knox, or on a desert island where you're the only person for thousands of miles. 
 
 giveDelayToEnterPasswordOnNetworks='TheCafeIAlwaysGoto_Wifi'
-#Enter frequently used networks above. When connected to one of these networks, this script will give 5 second delay to enter password to abort security lock. This is intended as a 'medium security' setting, to give you a chance to abort locking in places that you frequently work but which you still want to protect against your data being vulnerable if your laptop gets snatched. This does nothing if alwaysOfferChanceToEnterPassword is set to true.
+#Enter frequently used networks above. When connected to one of these networks, this script will give a user-defined delay to enter password to abort security lock. This is intended as a 'medium security' setting, to give you a chance to abort locking in places that you frequently work but which you still want to protect against your data being vulnerable if your laptop gets snatched. This does nothing if alwaysOfferChanceToEnterPassword is set to true.
 
 ### LOG SETUP ###
 
@@ -41,10 +41,10 @@ logLocation=~/Library/Logs/mkSecurity.log
 #specify a location for logging. Very helpful for figuring out what happened if there's a misfire.
 
 #First check how recently this ran, abort if too soon. 
-
 thatTime=$(cat /var/tmp/lockscreen.sh.tmp)   
 thisTime=`date +%s`
-theDiff=$thisTime-$thatTime
+echo $thisTime > /var/tmp/lockscreen.sh.tmp
+theDiff=$(($thisTime-$thatTime)) #treat as integers. Stoopid BASH
 if [ $theDiff -lt $dontRunMoreOftenThan ] 
 then
     echo $(date '+%Y-%m-%d %H:%M:%S') slock trigger $1, too darn soon! Killing, not suspending. This: $thisTime, Last: $thatTime, diff: $theDiff >> $logLocation
@@ -104,7 +104,7 @@ else
         (
         # the background process starts here
     
-            theAnswer=`osascript -e 'tell me to activate' -e 'set theAnswer to the text returned of (display dialog "You have '"$thePasswordDelay"' seconds to enter the  password." default answer "" buttons {"OK"} default button 1 giving up after '"$thePasswordDelay"' with hidden answer)'`
+            theAnswer=`osascript -e 'tell me' -e 'activate' -e 'set theAnswer to the text returned of (display dialog "You have '"$thePasswordDelay"' seconds to enter the  password." default answer "" buttons {"OK"} default button 1 giving up after '"$thePasswordDelay"' with hidden answer)' -e 'end tell'`
             # Beware, mortals: osascript -e 'blah "blah" $varName blah' would be nice, but $varName doesn't evaluate within single quotes and the command fails. You need to either use the funky syntax 'blah "blah" '"$varName"' blah", or use "blah \"blah\" $varName blah". I've opted for the first because I'm less familiar with it and want to remember it.
         
             if [[ $theAnswer == $thePassword ]] 
@@ -122,7 +122,10 @@ else
         
                 ps -ef | grep "$forGrep" | awk '{print $2}' | xargs kill -9
                 # Killed. We use quotes in the grep expression in case of spaces in this file's name.
-        
+
+                echo $(date '+%Y-%m-%d %H:%M:%S') slock ERROR - lock process not killed! >> $logLocation
+        		#shouldn't ever get here. If this turns up in the log, the process didn't die.
+        		
             fi
             echo $(date '+%Y-%m-%d %H:%M:%S') slock trigger $1 triggered - Dialog timed out with answer "$theAnswer", trigger not stopped  >> $logLocation    
         ) &
